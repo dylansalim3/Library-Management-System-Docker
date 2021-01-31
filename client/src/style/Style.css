@@ -1,0 +1,64 @@
+@media (min-width:960px) {
+    .content {
+        margin-left: 280px;
+    }
+
+}
+
+.content {
+    padding: 20px
+}
+
+.gridmargin {
+    margin-top: 25px!important;
+}
+.gridWidth {
+    width: 80%
+}
+
+.gridSecWidth{
+    width: 65%;
+}
+
+.profileInput{
+    width: 80%;
+    max-width: 500px;
+}
+
+.textCenter{
+    text-align:center;
+}
+
+.textRight{
+    text-align:right;
+}
+
+.center{
+    margin:auto;
+}
+
+.flex-justify-center{
+    display:flex;
+    justify-content: center;
+}
+
+.flexGrow{
+    flex-grow: 1;
+}
+
+.flex{
+    display:flex;
+}
+
+.flex-content-space-between{
+    justify-content: space-between;
+}
+
+@media (max-width:600px){
+    /* when smaller than 600px */
+    .gridWidth{
+        width: 100%
+    }
+}
+
+

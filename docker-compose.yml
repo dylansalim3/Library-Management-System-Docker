@@ -1,0 +1,58 @@
+version: '3'
+
+services:
+  mysql:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: fyp_primary_school_management
+      MYSQL_USER: 'test'
+      MYSQL_PASS: 'pass'
+    ports:
+      - "3300:3306"
+    expose:
+      - 3300
+    restart: unless-stopped
+    volumes:
+      - ./db/mysql:/var/lib/mysql
+    container_name: mydb
+  backend:
+    container_name: backend
+    depends_on: 
+        - mysql
+    links:
+        - mysql
+    env_file:
+        "./backend/.env"
+    restart: always
+    build:
+      context: ./backend
+      dockerfile: ./Dockerfile
+    image: "dylansalim3/library-management-backend"
+    ports:
+      - "5000:5000"
+    expose:
+      - 5000
+    volumes: 
+      - ./backend:/backend
+    command: ./wait-for.sh mydb:3306 -- nodemon app.js
+  frontend:
+    container_name: frontend
+    build:
+      context: ./client
+      dockerfile: ./Dockerfile
+    env_file:
+        "./client/.env"
+    environment:
+      REACT_APP_SERVER_BASE_URL: https://${LOCAL_HTTPS_ADDRESS}/api/
+    image: "dylansalim3/library-management-frontend"
+    ports:
+      - "3000:80"
+    expose:
+      - 3000
+    links:
+      - backend
+    depends_on:
+      - backend
+    volumes:
+      - ./client:/client

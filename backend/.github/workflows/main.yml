@@ -1,0 +1,39 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: self-hosted
+        
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Make envfile
+      uses: SpicyPizza/create-envfile@v1
+      with:
+        envkey_NODE_ENV: "development"
+        envkey_EMAIL_SERVICE: "gmail"
+        envkey_CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        envkey_CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        envkey_REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+        envkey_SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+        envkey_DB_TABLE_NAME: ${{ secrets.DB_TABLE_NAME }}
+        envkey_DB_USERNAME: ${{ secrets.DB_USERNAME }}
+        envkey_DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        envkey_DB_HOST: ${{ secrets.DB_HOST }}
+        envkey_DB_PORT: ${{ secrets.DB_PORT }}
+        envkey_DB_DIALECT: ${{ secrets.DB_DIALECT }}
+        envkey_PUBLIC_VAPID_KEY: ${{secrets.PUBLIC_VAPID_KEY}}
+        envkey_PRIVATE_VAPID_KEY: ${{secrets.PRIVATE_VAPID_KEY}}
+      
+    - name: Move directory
+      run: cp -r * ~/dylan-fyp/web/ && rm -r *
+      
+    - name: Restart Docker
+      run: docker restart 5c64fd88fb03

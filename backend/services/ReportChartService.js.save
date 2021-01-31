@@ -1,0 +1,437 @@
+const {CanvasRenderService} = require('chartjs-node-canvas');
+const path = require('path');
+const fs = require('fs');
+const UserRepository = require('./../repository/UserRepository');
+const BorrowBookRepository = require('./../repository/BorrowBookRepository');
+const BorrowBookHistoryRepository = require('./../repository/BorrowBookHistoryRepository');
+const BookRepository = require('./../repository/BookRepository');
+const {BORROWED_MAX, OVERDUE_MAX, ADDED_MAX, RENEWED_MAX} = require('./../constant/constant');
+const ChartDataLabels = require('chartjs-plugin-datalabels');
+
+// const stream = canvasRenderService.renderToStream(configuration);
+// const imageBuffer = await canvasRenderService.renderToBuffer(configuration);
+const headerColor = "#203864";
+const headerRibbonColor = "#8497B0";
+const subheaderColor = "#dae3f3";
+const dashboardChartSize = 200;
+
+const chartCallback = (ChartJS, plugin) => {
+
+    // Global config example: https://www.chartjs.org/docs/latest/configuration/
+    ChartJS.defaults.global.elements.rectangle.borderWidth = 2;
+    // Global plugin example: https://www.chartjs.org/docs/latest/developers/plugins.html
+    ChartJS.plugins.register({
+        ...plugin,
+        // beforeDraw: function(chartInstance) {
+        //     var ctx = chartInstance.chart.ctx;
+        //     ctx.fillStyle = "white";
+        //     ctx.fillRect(0, 0, chartInstance.chart.width, chartInstance.chart.height);
+        // },
+        afterDraw: function (chart) {
+            // console.log(chart.data.datasets[0].data.length, chart.canvas.id, chart.data.datasets[0].data);
+            if (chart.data.datasets[0].data.length === 0) {
+                // No data is present
+                var ctx = chart.chart.ctx;
+                var width = chart.chart.width;
+                var height = chart.chart.height;
+                chart.clear();
+
+                ctx.save();
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = "16px normal 'DejaVuSerif','Helvetica Neue'";
+                // chart.options.title.text <=== gets title from chart
+                // width / 2 <=== centers title on canvas
+                // 18 <=== aligns text 18 pixels from top, just like Chart.js
+                // ctx.fillText('No data to display for selected time period', width / 2, height / 2);
+                ctx.restore();
+            }
+        }
+    });
+    // New chart type example: https://www.chartjs.org/docs/latest/developers/charts.html
+    ChartJS.controllers.MyType = ChartJS.DatasetController.extend({
+        // chart implementation
+    });
+};
+
+const doughnutChartCallback = (ChartJS) => {
+    chartCallback(ChartJS, {
+        beforeDraw: function (chart) {
+            if (chart.config.options.elements.center) {
+                // Get ctx from string
+                var ctx = chart.chart.ctx;
+
+                // Get options from the center object in options
+                var centerConfig = chart.config.options.elements.center;
+                var fontStyle = centerConfig.fontStyle || 'Arial';
+                var txt = centerConfig.text;
+                var color = centerConfig.color || '#000';
+                var maxFontSize = centerConfig.maxFontSize || 75;
+                var sidePadding = centerConfig.sidePadding || 20;
+                var sidePaddingCalculated = (sidePadding / 100) * (chart.innerRadius * 2)
+                // Start with a base font of 30px
+                ctx.font = "30px " + fontStyle;
+                // ctx.fillStyle = "white";
+                // ctx.fillRect(0, 0, chartInstance.chart.width, chartInstance.chart.height);
+
+                // Get the width of the string and also the width of the element minus 10 to give it 5px side padding
+                var stringWidth = ctx.measureText(txt).width;
+                var elementWidth = (chart.innerRadius * 2) - sidePaddingCalculated;
+
+                // Find out how much the font can grow in width.
+                var widthRatio = elementWidth / stringWidth;
+                var newFontSize = Math.floor(30 * widthRatio);
+                var elementHeight = (chart.innerRadius * 2);
+
+                // Pick a new font size so it will not be larger than the height of label.
+                var fontSizeToUse = Math.min(newFontSize, elementHeight, maxFontSize);
+                var minFontSize = centerConfig.minFontSize;
+                var lineHeight = centerConfig.lineHeight || 25;
+                var wrapText = false;
+
+                if (minFontSize === undefined) {
+                    minFontSize = 20;
+                }
+
+                if (minFontSize && fontSizeToUse < minFontSize) {
+                    fontSizeToUse = minFontSize;
+                    wrapText = true;
+                }
+
+                // Set font settings to draw it correctly.
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                var centerX = ((chart.chartArea.left + chart.chartArea.right) / 2);
+                var centerY = ((chart.chartArea.top + chart.chartArea.bottom) / 2);
+                ctx.font = fontSizeToUse + "px " + fontStyle;
+                ctx.fillStyle = color;
+
+                if (!wrapText) {
+                    ctx.fillText(txt, centerX, centerY);
+                    return;
+                }
+
+                var words = txt.split(' ');
+                var line = '';
+                var lines = [];
+
+                // Break words up into multiple lines if necessary
+                for (var n = 0; n < words.length; n++) {
+                    var testLine = line + words[n] + ' ';
+                    var metrics = ctx.measureText(testLine);
+                    var testWidth = metrics.width;
+                    if (testWidth > elementWidth && n > 0) {
+                        lines.push(line);
+                        line = words[n] + ' ';
+                    } else {
+                        line = testLine;
+                    }
+                }
+
+                // Move the center up depending on line height and number of lines
+                centerY -= (lines.length / 2) * lineHeight;
+
+                for (var n = 0; n < lines.length; n++) {
+                    ctx.fillText(lines[n], centerX, centerY);
+                    centerY += lineHeight;
+                }
+                //Draw text in center
+                ctx.fillText(line, centerX, centerY);
+            }
+        }
+    })
+}
+
+exports.generateCharts = async (curMonth, year) => {
+
+    const allUsersBase64 = await createAllUserChart();
+    // writeBase64ImageToFile(allUsersBase64, "allUsers");
+
+    if (curMonth === undefined || year === undefined) {
+        curMonth = new Date().getMonth();
+        year = new Date().getFullYear();
+    }
+
+    let month = curMonth - 1;
+    if (month <= -1) {
+        month += 12;
+        year -= 1;
+    }
+
+
+    const newUsersBase64 = await createNewUserChart(month, year);
+    // writeBase64ImageToFile(newUsersBase64, "newUsers");
+
+    const numberOfBooksBorrowedDoughnutBase64 = await createNumberOfBooksBorrowedDoughnut(month, year);
+    // writeBase64ImageToFile(numberOfBooksBorrowedDoughnutBase64, "NoOfBooks");
+
+    const overdueBooksBase64 = await createNumberOfBooksOverdueDoughnut(month, year);
+    // writeBase64ImageToFile(overdueBooksBase64, "Overdue")
+
+    const addedBooksBase64 = await createNumberOfBooksAddedDoughnut(month, year);
+    // writeBase64ImageToFile(addedBooksBase64, "Added");
+
+    // await BorrowBookRepository.getTopFiveBooksBorrowed();
+
+    const barChartBase64 = await createBooksBorrowedBarChart();
+    // writeBase64ImageToFile(barChartBase64, "Bar_Chart");
+
+    // console.log(newUsersBase64)
+
+    return {
+        allUsersBase64,
+        newUsersBase64,
+        numberOfBooksBorrowedDoughnutBase64,
+        overdueBooksBase64,
+        addedBooksBase64,
+        barChartBase64
+    }
+}
+
+const createAllUserChart = async () => {
+    const width = 400;
+    const height = 400;
+
+    const {studentCountPromise, teacherCountPromise} = UserRepository.getTotalUserCount();
+
+    const studentCount = await studentCountPromise;
+    const teacherCount = await teacherCountPromise;
+    const canvasRenderService = new CanvasRenderService(width, height, chartCallback);
+
+    const configuration = {
+        type: 'pie',
+        data: {
+            labels: ['Student', 'Teacher'],
+            datasets: [{
+                data: [studentCount, teacherCount],
+                backgroundColor: [
+                    'rgba(255,99,132,1)',
+                    'rgba(54, 162, 235, 1)',
+                ],
+                borderColor: [
+                    'rgba(255,99,132,1)',
+                    'rgba(54, 162, 235, 1)',
+                ],
+                borderWidth: 1,
+                datalabels: {
+                    color: 'yellow'
+                }
+            }]
+        },
+        options: {
+            plugins: {
+                datalabels: {
+                    color: "white"
+                }
+            }
+        }
+    };
+    return canvasRenderService.renderToDataURL(configuration);
+}
+
+const createNewUserChart = async (month, year) => {
+    const width = 400;
+    const height = 400;
+
+    const {studentCountPromise, teacherCountPromise} = UserRepository.getNewUserCount(month, year);
+
+    const studentCount = await studentCountPromise;
+    const teacherCount = await teacherCountPromise;
+
+    let data = [studentCount, teacherCount];
+    if (studentCount === 0 && teacherCount === 0) {
+        data = null;
+    }
+
+
+    const canvasRenderService = new CanvasRenderService(width, height, doughnutChartCallback);
+
+    const configuration = {
+        type: 'doughnut',
+        data: {
+            labels: ['Student', 'Teacher'],
+            datasets: [{
+                data: data,
+                backgroundColor: [
+                    'rgba(255,99,132,1)',
+                    'rgba(54, 162, 235, 1)',
+                ],
+                borderColor: [
+                    'rgba(255,99,132,1)',
+                    'rgba(54, 162, 235, 1)',
+                ],
+                borderWidth: 1
+            }]
+        },
+    };
+    return canvasRenderService.renderToDataURL(configuration);
+}
+
+const createNumberOfBooksBorrowedDoughnut = async (month, year) => {
+    const booksCurrentBorrowed = await BorrowBookRepository.getBorrowedBookCountByMonth(month, year);
+    const booksHistoryCurrentBorrowed = await BorrowBookHistoryRepository.getBorrowedBookByMonth(month, year);
+    const totalBookBorrowedCount = booksCurrentBorrowed + booksHistoryCurrentBorrowed;
+
+    const remainderCount = BORROWED_MAX - totalBookBorrowedCount > 0 ? BORROWED_MAX - totalBookBorrowedCount : 0;
+
+    return constructDashboardDoughnutChart("Number of Books Borrowed", totalBookBorrowedCount, remainderCount, `Measured against ${BORROWED_MAX} books`)
+}
+
+const createNumberOfBooksOverdueDoughnut = async (month, year) => {
+    const overdueCount = await BorrowBookRepository.getTotalOverdueBooksCountByMonth(month, year);
+    const remainderCount = OVERDUE_MAX - overdueCount;
+
+    return await constructDashboardDoughnutChart("Number of Books Overdue", overdueCount, remainderCount, `Measured against ${OVERDUE_MAX} books`);
+}
+
+const createNumberOfBooksAddedDoughnut = async (month, year) => {
+    const booksAddedCount = await BookRepository.getBookCreatedCountByMonth(month, year);
+    const remainderCount = ADDED_MAX - booksAddedCount;
+
+    return await constructDashboardDoughnutChart("Number of Books Added", booksAddedCount, remainderCount, `Measured against ${ADDED_MAX} books`);
+
+}
+
+const constructDashboardDoughnutChart = async (itemLabel, itemCount, remainderCount, bottomTitle) => {
+    const configuration = {
+        type: 'doughnut',
+        data: {
+            labels: [itemLabel],
+            datasets: [{
+                data: [itemCount, remainderCount],
+                backgroundColor: [
+                    headerColor,
+                    '#FFFFFF',
+                ],
+                borderColor: [
+                    headerColor,
+                    '#FFFFFF',
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            legend: {
+                display: false
+            },
+            elements: {
+                center: {
+                    text: `${itemCount} books`,
+                    color: '#FF6384', // Default is #000000
+                    fontStyle: 'Arial', // Default is Arial
+                    sidePadding: 20, // Default is 20 (as a percentage)
+                    minFontSize: 18, // Default is 20 (in px), set to false and text will not wrap.
+                    lineHeight: 25 // Default is 25 (in px), used for when text wraps
+                },
+            },
+            title: {
+                display: true,
+                position: 'bottom',
+                text: bottomTitle
+            }
+        }
+    };
+
+    const canvasRenderService = new CanvasRenderService(dashboardChartSize, dashboardChartSize, doughnutChartCallback);
+
+    return new Promise((resolve, reject) => setTimeout(() => {
+        resolve(canvasRenderService.renderToDataURL(configuration))
+    }, 1000));
+}
+
+const monthsInString = {
+    0: 'Jan',
+    1: 'Feb',
+    2: 'Mar',
+    3: 'Apr',
+    4: 'May',
+    5: 'Jun',
+    6: 'Jul',
+    7: 'Aug',
+    8: 'Sep',
+    9: 'Oct',
+    10: 'Nov',
+    11: 'Dec'
+};
+
+const createBooksBorrowedBarChart = async () => {
+    const width = 400;
+    const height = 400;
+
+    const curMonth = new Date().getMonth();
+    const curYear = new Date().getFullYear();
+    const monthStringArr = [];
+
+    const countArr = [];
+    for (let i = 1; i <= 5; i++) {
+
+        let monthToGenerate = curMonth - i > 0 ? curMonth - i : curMonth - i + 12;
+        let yearToGenerate = curMonth - i > 0 ? curYear : curYear - 1;
+
+        monthStringArr.unshift(monthsInString[monthToGenerate]);
+
+        countArr.unshift(await BorrowBookRepository.getBorrowedBookCountByMonth(monthToGenerate, yearToGenerate));
+    }
+
+    const configuration = {
+        type: 'bar',
+        data: {
+            labels: monthStringArr,
+            datasets: [{
+                label: '',
+                data: countArr,
+                backgroundColor: [
+                    'rgba(255,99,132,1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192,1)',
+                    'rgba(153, 102, 255, 1)'
+                ],
+                borderColor: [
+                    'rgba(255,99,132,1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(153, 102, 255, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            legend: {
+                display: false
+            },
+            scales: {
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true,
+                    }
+                }]
+            }
+        }
+    };
+
+    const canvasRenderService = new CanvasRenderService(width, height, chartCallback);
+
+    const dataUrlBase64 = await canvasRenderService.renderToDataURL(configuration);
+
+    return dataUrlBase64;
+}
+
+const writeBase64ImageToFile = (dataUrlBase64, filename, done) => {
+    const base64Data = dataUrlBase64.replace(/^data:image\/png;base64,/, "");
+    const outputFile = path.join(path.dirname(require.main.filename || process.main.filename), 'generated_charts', `${filename}.png`);
+    fs.writeFile(outputFile, base64Data, "base64", function (err) {
+        if (err) {
+            console.log(err);
+            if (done !== undefined) {
+                done(err);
+            }
+            return;
+        }
+        console.log("done " + filename);
+        if (done !== undefined) {
+            done();
+        }
+    });
+}

@@ -1,0 +1,7 @@
+node_modules
+.vscode
+.idea/
+misc.xml
+workspace.xml
+package-lock.json
+.env
