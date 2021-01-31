@@ -6,7 +6,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: fyp_primary_school_management
-      MYSQL_USER: 'test'
+      MYSQL_USER: 'user'
       MYSQL_PASS: 'pass'
     ports:
       - "3300:3306"
