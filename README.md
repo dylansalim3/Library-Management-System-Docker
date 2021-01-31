@@ -10,26 +10,26 @@ The project objective is to develop a web-based application that provides studen
 
 ## Dependencies
 ### Frontend Dependencies
-➔	React (Front-End View Library)
-➔	Axios (HTTP client)
-➔	Material-UI (UI Framework)
-➔	React Hooks Form (Form Library)
-➔	React Barcode (Generate barcode)
-➔	Jwt-Decode (Decode JWT token from the backend)
-➔	Date-fns (JS Date Utility Library)
-➔   Socket.io-client (Socket Library)
-
+➔	React (Front-End View Library)  
+➔	Axios (HTTP client)  
+➔	Material-UI (UI Framework)  
+➔	React Hooks Form (Form Library)  
+➔	React Barcode (Generate barcode)  
+➔	Jwt-Decode (Decode JWT token from the backend)  
+➔	Date-fns (JS Date Utility Library)  
+➔   Socket.io-client (Socket Library)  
+  
 ### Backend Dependencies
-➔	Node JS (Execution environment)
-➔	Express JS (Node JS web framework)
-➔	Sequelize (ORM tool)
-➔	MySQL2 (MySQL connector)
-➔	Mutler (Upload Image)
-➔	BCrypt (Hashing algorithm)
-➔	Json Web Token, JWT (To transfer verified user credential)
-➔	NodeMailer (To send email)
-➔	CSV Parser (Parse CSV files)
-➔	Cors (Handles cross origin requests)
+➔	Node JS (Execution environment)  
+➔	Express JS (Node JS web framework)  
+➔	Sequelize (ORM tool)  
+➔	MySQL2 (MySQL connector)  
+➔	Mutler (Upload Image)  
+➔	BCrypt (Hashing algorithm)  
+➔	Json Web Token, JWT (To transfer verified user credential)  
+➔	NodeMailer (To send email)  
+➔	CSV Parser (Parse CSV files)  
+➔	Cors (Handles cross origin requests)  
 
 ## Environment File
 ### Frontend env
